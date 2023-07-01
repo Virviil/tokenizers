@@ -1,6 +1,6 @@
 defmodule Tokenizers.Model.BPE do
   @typedoc """
-  Options for model initialisation. All values are optional.
+  Options for model initialisation. All options can be ommited.
 
   * `:cache_capacity` (default `10_000`) - The number of words that the BPE cache can contain.
     The cache allows to speed-up the process by keeping

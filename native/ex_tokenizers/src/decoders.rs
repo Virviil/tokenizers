@@ -1,8 +1,7 @@
-use std::collections::HashMap;
-
+use serde::{Deserialize, Serialize};
 use tokenizers::{Decoder, DecoderWrapper};
 
-use crate::{util::DetailValue, ExTokenizersError};
+use crate::{new_info, util::Info, ExTokenizersError};
 
 pub struct ExTokenizersDecoderRef(pub DecoderWrapper);
 
@@ -10,6 +9,34 @@ pub struct ExTokenizersDecoderRef(pub DecoderWrapper);
 #[module = "Tokenizers.Decoder"]
 pub struct ExTokenizersDecoder {
     pub resource: rustler::resource::ResourceArc<ExTokenizersDecoderRef>,
+}
+
+impl Serialize for ExTokenizersDecoder {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.resource.0.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for ExTokenizersDecoder {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Ok(ExTokenizersDecoder::new(DecoderWrapper::deserialize(
+            deserializer,
+        )?))
+    }
+}
+
+impl Clone for ExTokenizersDecoder {
+    fn clone(&self) -> Self {
+        Self {
+            resource: self.resource.clone(),
+        }
+    }
 }
 
 impl ExTokenizersDecoderRef {
@@ -32,6 +59,12 @@ impl ExTokenizersDecoder {
     }
 }
 
+impl tokenizers::Decoder for ExTokenizersDecoder {
+    fn decode_chain(&self, tokens: Vec<String>) -> tokenizers::Result<Vec<String>> {
+        self.resource.0.decode_chain(tokens)
+    }
+}
+
 #[rustler::nif(schedule = "DirtyCpu")]
 fn decoders_decode(
     decoder: ExTokenizersDecoder,
@@ -49,84 +82,52 @@ fn decoders_decode(
 ///////////////////////////////////////////////////////////////////////////////
 
 #[rustler::nif]
-fn decoders_info(
-    decoder: ExTokenizersDecoder,
-) -> Result<HashMap<String, DetailValue>, ExTokenizersError> {
-    Ok(match &decoder.resource.0 {
-        tokenizers::DecoderWrapper::BPE(decoder) => HashMap::from([
-            ("decoder_type".into(), DetailValue::String("BPE".into())),
-            ("suffix".into(), DetailValue::String(decoder.suffix.clone())),
-        ]),
-        DecoderWrapper::ByteLevel(decoder) => HashMap::from([
-            (
-                "decoder_type".into(),
-                DetailValue::String("ByteLevel".into()),
-            ),
-            (
-                "add_prefix_space".into(),
-                DetailValue::Bool(decoder.add_prefix_space),
-            ),
-            (
-                "trim_offsets".into(),
-                DetailValue::Bool(decoder.trim_offsets),
-            ),
-            ("use_regex".into(), DetailValue::Bool(decoder.use_regex)),
-        ]),
-        DecoderWrapper::WordPiece(decoder) => HashMap::from([
-            (
-                "decoder_type".into(),
-                DetailValue::String("WordPiece".into()),
-            ),
-            ("prefix".into(), DetailValue::String(decoder.prefix.clone())),
-            ("cleanup".into(), DetailValue::Bool(decoder.cleanup)),
-        ]),
-        DecoderWrapper::Metaspace(decoder) => HashMap::from([
-            (
-                "decoder_type".into(),
-                DetailValue::String("Metaspace".into()),
-            ),
-            (
-                "add_prefix_space".into(),
-                DetailValue::Bool(decoder.add_prefix_space),
-            ),
-        ]),
-        DecoderWrapper::CTC(decoder) => HashMap::from([
-            ("decoder_type".into(), DetailValue::String("CTC".into())),
-            (
-                "pad_token".into(),
-                DetailValue::String(decoder.pad_token.clone()),
-            ),
-            (
-                "word_delimiter_token".into(),
-                DetailValue::String(decoder.word_delimiter_token.clone()),
-            ),
-            ("cleanup".into(), DetailValue::Bool(decoder.cleanup)),
-        ]),
-        DecoderWrapper::Sequence(_decoder) => HashMap::from([(
-            "decoder_type".into(),
-            DetailValue::String("Sequence".into()),
-        )]),
-        DecoderWrapper::Replace(_decoder) => {
-            HashMap::from([("decoder_type".into(), DetailValue::String("Replace".into()))])
-        }
-
-        DecoderWrapper::Fuse(_decoder) => {
-            HashMap::from([("decoder_type".into(), DetailValue::String("Fuse".into()))])
-        }
-        DecoderWrapper::Strip(decoder) => HashMap::from([
-            ("decoder_type".into(), DetailValue::String("Strip".into())),
-            (
-                "content".into(),
-                DetailValue::String(decoder.content.into()),
-            ),
-            ("start".into(), DetailValue::USize(decoder.start)),
-            ("stop".into(), DetailValue::USize(decoder.stop)),
-        ]),
-        DecoderWrapper::ByteFallback(_decoder) => HashMap::from([(
-            "decoder_type".into(),
-            DetailValue::String("ByteFallback".into()),
-        )]),
-    })
+fn decoders_info(decoder: ExTokenizersDecoder) -> Info {
+    match &decoder.resource.0 {
+        tokenizers::DecoderWrapper::BPE(decoder) => new_info! {
+            decoder_type: "BPE",
+            suffix: decoder.suffix.clone()
+        },
+        tokenizers::DecoderWrapper::ByteLevel(decoder) => new_info! {
+            decoder_type: "ByteLevel",
+            add_prefix_space: decoder.add_prefix_space,
+            trim_offsets: decoder.trim_offsets,
+            use_regex: decoder.use_regex
+        },
+        tokenizers::DecoderWrapper::WordPiece(decoder) => new_info! {
+            decoder_type: "WordPiece",
+            prefix: decoder.prefix.clone(),
+            cleanup: decoder.cleanup
+        },
+        tokenizers::DecoderWrapper::Metaspace(decoder) => new_info! {
+            decoder_type: "Metaspace",
+            add_prefix_space: decoder.add_prefix_space
+        },
+        tokenizers::DecoderWrapper::CTC(decoder) => new_info! {
+            decoder_type: "CTC",
+            pad_token: decoder.pad_token.clone(),
+            word_delimiter_token: decoder.word_delimiter_token.clone(),
+            cleanup: decoder.cleanup
+        },
+        tokenizers::DecoderWrapper::Sequence(_) => new_info! {
+            decoder_type: "Sequence"
+        },
+        DecoderWrapper::Replace(_) => new_info! {
+            decoder_type: "Replace"
+        },
+        DecoderWrapper::Fuse(_) => new_info! {
+            decoder_type: "Fuse"
+        },
+        DecoderWrapper::Strip(decoder) => new_info! {
+            decoder_type: "Strip",
+            content: decoder.content as u32,
+            start: decoder.start,
+            stop: decoder.stop
+        },
+        DecoderWrapper::ByteFallback(_) => new_info! {
+            decoder_type: "ByteFallback"
+        },
+    }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -134,44 +135,36 @@ fn decoders_info(
 ///////////////////////////////////////////////////////////////////////////////
 
 #[rustler::nif]
-fn decoders_byte_level() -> Result<ExTokenizersDecoder, ExTokenizersError> {
-    Ok(ExTokenizersDecoder::new(
-        tokenizers::decoders::byte_level::ByteLevel::default(),
-    ))
+fn decoders_byte_level() -> ExTokenizersDecoder {
+    ExTokenizersDecoder::new(tokenizers::decoders::byte_level::ByteLevel::default())
 }
 
 #[rustler::nif]
 fn decoders_replace(
     pattern: String,
     content: String,
-) -> Result<ExTokenizersDecoder, ExTokenizersError> {
+) -> Result<ExTokenizersDecoder, rustler::Error> {
     Ok(ExTokenizersDecoder::new(
-        tokenizers::normalizers::Replace::new(pattern, content)?,
+        tokenizers::normalizers::Replace::new(pattern, content)
+            .map_err(|_| rustler::Error::BadArg)?,
     ))
 }
 
 #[rustler::nif]
-fn decoders_wordpiece(
-    prefix: String,
-    cleanup: bool,
-) -> Result<ExTokenizersDecoder, ExTokenizersError> {
-    Ok(ExTokenizersDecoder::new(
-        tokenizers::decoders::wordpiece::WordPiece::new(prefix, cleanup),
+fn decoders_wordpiece(prefix: String, cleanup: bool) -> ExTokenizersDecoder {
+    ExTokenizersDecoder::new(tokenizers::decoders::wordpiece::WordPiece::new(
+        prefix, cleanup,
     ))
 }
 
 #[rustler::nif]
-fn decoders_byte_fallback() -> Result<ExTokenizersDecoder, ExTokenizersError> {
-    Ok(ExTokenizersDecoder::new(
-        tokenizers::decoders::byte_fallback::ByteFallback::new(),
-    ))
+fn decoders_byte_fallback() -> ExTokenizersDecoder {
+    ExTokenizersDecoder::new(tokenizers::decoders::byte_fallback::ByteFallback::new())
 }
 
 #[rustler::nif]
-fn decoders_fuse() -> Result<ExTokenizersDecoder, ExTokenizersError> {
-    Ok(ExTokenizersDecoder::new(
-        tokenizers::decoders::fuse::Fuse::new(),
-    ))
+fn decoders_fuse() -> ExTokenizersDecoder {
+    ExTokenizersDecoder::new(tokenizers::decoders::fuse::Fuse::new())
 }
 
 #[rustler::nif]
@@ -179,8 +172,8 @@ fn decoders_strip(
     content: u32,
     left: usize,
     right: usize,
-) -> Result<ExTokenizersDecoder, ExTokenizersError> {
-    let content = std::char::from_u32(content).ok_or(ExTokenizersError::InvalidChar)?;
+) -> Result<ExTokenizersDecoder, rustler::Error> {
+    let content = std::char::from_u32(content).ok_or(rustler::Error::BadArg)?;
     Ok(ExTokenizersDecoder::new(
         tokenizers::decoders::strip::Strip::new(content, left, right),
     ))
@@ -190,18 +183,16 @@ fn decoders_strip(
 fn decoders_metaspace(
     replacement: u32,
     add_prefix_space: bool,
-) -> Result<ExTokenizersDecoder, ExTokenizersError> {
-    let replacement = std::char::from_u32(replacement).ok_or(ExTokenizersError::InvalidChar)?;
+) -> Result<ExTokenizersDecoder, rustler::Error> {
+    let replacement = std::char::from_u32(replacement).ok_or(rustler::Error::BadArg)?;
     Ok(ExTokenizersDecoder::new(
         tokenizers::decoders::metaspace::Metaspace::new(replacement, add_prefix_space),
     ))
 }
 
 #[rustler::nif]
-fn decoders_bpe(suffix: String) -> Result<ExTokenizersDecoder, ExTokenizersError> {
-    Ok(ExTokenizersDecoder::new(
-        tokenizers::decoders::bpe::BPEDecoder::new(suffix),
-    ))
+fn decoders_bpe(suffix: String) -> ExTokenizersDecoder {
+    ExTokenizersDecoder::new(tokenizers::decoders::bpe::BPEDecoder::new(suffix))
 }
 
 #[rustler::nif]
@@ -209,16 +200,16 @@ fn decoders_ctc(
     pad_token: String,
     word_delimiter_token: String,
     cleanup: bool,
-) -> Result<ExTokenizersDecoder, ExTokenizersError> {
-    Ok(ExTokenizersDecoder::new(
-        tokenizers::decoders::ctc::CTC::new(pad_token, word_delimiter_token, cleanup),
+) -> ExTokenizersDecoder {
+    ExTokenizersDecoder::new(tokenizers::decoders::ctc::CTC::new(
+        pad_token,
+        word_delimiter_token,
+        cleanup,
     ))
 }
 
 #[rustler::nif]
-fn decoders_sequence(
-    decoders: Vec<ExTokenizersDecoder>,
-) -> Result<ExTokenizersDecoder, ExTokenizersError> {
+fn decoders_sequence(decoders: Vec<ExTokenizersDecoder>) -> ExTokenizersDecoder {
     let sequence = decoders
         .iter()
         .map(|decoder| decoder.resource.clone())
@@ -227,7 +218,5 @@ fn decoders_sequence(
             acc
         });
 
-    Ok(ExTokenizersDecoder::new(
-        tokenizers::decoders::sequence::Sequence::new(sequence),
-    ))
+    ExTokenizersDecoder::new(tokenizers::decoders::sequence::Sequence::new(sequence))
 }

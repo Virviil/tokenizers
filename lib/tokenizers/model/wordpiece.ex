@@ -1,6 +1,6 @@
 defmodule Tokenizers.Model.WordPiece do
   @typedoc """
-  Options for model initialisation. All values are optional.
+  Options for model initialisation. All options can be ommited.
 
   * `:unk_token` (default `"[UNK]"`) - The unknown token to be used by the model.
   * `:max_input_chars_per_word` (default `100`) - The maximum number of characters to authorize in a single word.

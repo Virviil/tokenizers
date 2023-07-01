@@ -1,6 +1,6 @@
 defmodule Tokenizers.Model.Unigram do
   @typedoc """
-  Options for model initialisation. All values are optional.
+  Options for model initialisation. All options can be ommited.
 
   * `:unk_id`- The unknown token id to be used by the model.
   """

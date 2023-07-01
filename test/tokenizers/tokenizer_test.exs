@@ -29,10 +29,7 @@ defmodule Tokenizers.TokenizerTest do
     test "can add special tokens" do
       special_tokens = ["<|test|>"]
 
-      {:ok, tokenizer} =
-        Tokenizer.from_file("test/fixtures/bert-base-cased.json",
-          additional_special_tokens: special_tokens
-        )
+      {:ok, tokenizer} = Tokenizer.from_file("test/fixtures/bert-base-cased.json", special_tokens)
 
       assert Tokenizer.get_vocab_size(tokenizer) == 28997
     end
@@ -41,17 +38,12 @@ defmodule Tokenizers.TokenizerTest do
       text = ["This <|test|>is a test<|also|>", "<|test|>And so<|also|> is this<|test|>"]
       special_tokens = ["<|test|>", "<|also|>"]
 
-      {:ok, tokenizer} =
-        Tokenizer.from_file("test/fixtures/bert-base-cased.json",
-          additional_special_tokens: special_tokens
-        )
+      {:ok, tokenizer} = Tokenizer.from_file("test/fixtures/bert-base-cased.json", special_tokens)
 
-      {:ok, encodings} = Tokenizer.encode(tokenizer, text)
+      {:ok, encodings} = Tokenizer.encode_batch(tokenizer, text)
 
       {:ok, decodings} =
-        Tokenizer.decode(tokenizer, Enum.map(encodings, &Encoding.get_ids/1),
-          skip_special_tokens: true
-        )
+        Tokenizer.decode_batch(tokenizer, Enum.map(encodings, &Encoding.get_ids/1), true)
 
       assert ["This is a test", "And so is this"] == decodings
     end
@@ -150,10 +142,10 @@ defmodule Tokenizers.TokenizerTest do
 
     test "can encode a single string with special characters", %{tokenizer: tokenizer} do
       seq = "This is a test"
-      {:ok, encoding_clean} = Tokenizer.encode(tokenizer, seq, add_special_tokens: false)
+      {:ok, encoding_clean} = Tokenizer.encode(tokenizer, seq, false)
       {:ok, encoding_special} = Tokenizer.encode(tokenizer, seq)
 
-      refute Encoding.n_tokens(encoding_clean) == Encoding.n_tokens(encoding_special)
+      refute Encoding.get_length(encoding_clean) == Encoding.get_length(encoding_special)
     end
 
     test "can encode a pair of strings", %{tokenizer: tokenizer} do
@@ -162,12 +154,12 @@ defmodule Tokenizers.TokenizerTest do
 
     test "can encode a batch of strings", %{tokenizer: tokenizer} do
       assert {:ok, [%Tokenizers.Encoding{}, %Tokenizers.Encoding{}]} =
-               Tokenizer.encode(tokenizer, ["This is a test", "And so is this"])
+               Tokenizer.encode_batch(tokenizer, ["This is a test", "And so is this"])
     end
 
     test "can encode a batch of strings and pairs", %{tokenizer: tokenizer} do
       assert {:ok, [%Tokenizers.Encoding{}, %Tokenizers.Encoding{}]} =
-               Tokenizer.encode(tokenizer, ["This is a test", {"Question?", "Answer"}])
+               Tokenizer.encode_batch(tokenizer, ["This is a test", {"Question?", "Answer"}])
     end
 
     test "can decode a single encoding", %{tokenizer: tokenizer} do
@@ -184,7 +176,7 @@ defmodule Tokenizers.TokenizerTest do
       ids = Encoding.get_ids(encoding)
 
       {:ok, seq_clean} = Tokenizer.decode(tokenizer, ids)
-      {:ok, seq_special} = Tokenizer.decode(tokenizer, ids, skip_special_tokens: false)
+      {:ok, seq_special} = Tokenizer.decode(tokenizer, ids, false)
 
       refute seq_special == seq
       assert seq_clean == seq
@@ -192,52 +184,41 @@ defmodule Tokenizers.TokenizerTest do
 
     test "can decode a batch of encodings", %{tokenizer: tokenizer} do
       text = ["This is a test", "And so is this"]
-      {:ok, encodings} = Tokenizer.encode(tokenizer, text)
+      {:ok, encodings} = Tokenizer.encode_batch(tokenizer, text)
       ids = Enum.map(encodings, &Encoding.get_ids/1)
-      {:ok, decoded} = Tokenizer.decode(tokenizer, ids)
+      {:ok, decoded} = Tokenizer.decode_batch(tokenizer, ids)
       assert decoded == text
-
-      assert Enum.map(ids, &list_to_u32/1) == Enum.map(encodings, &Encoding.get_u32_ids/1)
     end
   end
 
   describe "encode metadata" do
     test "can return attention mask", %{tokenizer: tokenizer} do
       text = ["Hello world", "Yes sir hello indeed"]
-      {:ok, encodings} = Tokenizer.encode(tokenizer, text)
+      {:ok, encodings} = Tokenizer.encode_batch(tokenizer, text)
 
       attention_mask = Enum.map(encodings, &Encoding.get_attention_mask/1)
       assert [[1, 1, 1, 1], [1, 1, 1, 1, 1, 1]] == attention_mask
-
-      assert Enum.map(attention_mask, &list_to_u32/1) ==
-               Enum.map(encodings, &Encoding.get_u32_attention_mask/1)
     end
 
     test "can return type ids", %{tokenizer: tokenizer} do
       text = [{"Hello", "world"}, {"Yes sir", "hello indeed"}]
-      {:ok, encodings} = Tokenizer.encode(tokenizer, text)
+      {:ok, encodings} = Tokenizer.encode_batch(tokenizer, text)
 
       type_ids = Enum.map(encodings, &Encoding.get_type_ids/1)
       assert [[0, 0, 0, 1, 1], [0, 0, 0, 0, 1, 1, 1]] == type_ids
-
-      assert Enum.map(type_ids, &list_to_u32/1) ==
-               Enum.map(encodings, &Encoding.get_u32_type_ids/1)
     end
 
     test "can return special tokens mask", %{tokenizer: tokenizer} do
       text = ["This is a test", "And so is this"]
-      {:ok, encodings} = Tokenizer.encode(tokenizer, text)
+      {:ok, encodings} = Tokenizer.encode_batch(tokenizer, text)
 
       special_tokens_mask = Enum.map(encodings, &Encoding.get_special_tokens_mask/1)
       assert [[1, 0, 0, 0, 0, 1], [1, 0, 0, 0, 0, 1]] == special_tokens_mask
-
-      assert Enum.map(special_tokens_mask, &list_to_u32/1) ==
-               Enum.map(encodings, &Encoding.get_u32_special_tokens_mask/1)
     end
 
     test "can return offsets", %{tokenizer: tokenizer} do
       text = ["This is a test", "And so is this"]
-      {:ok, encodings} = Tokenizer.encode(tokenizer, text)
+      {:ok, encodings} = Tokenizer.encode_batch(tokenizer, text)
       offsets = Enum.map(encodings, &Encoding.get_offsets/1)
 
       assert [
@@ -245,9 +226,5 @@ defmodule Tokenizers.TokenizerTest do
                [{0, 0}, {0, 3}, {4, 6}, {7, 9}, {10, 14}, {0, 0}]
              ] == offsets
     end
-  end
-
-  defp list_to_u32(list) do
-    for x <- list, into: <<>>, do: <<x::native-unsigned-32>>
   end
 end

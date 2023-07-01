@@ -2,7 +2,7 @@ defmodule Tokenizers.Model.BPETest do
   use ExUnit.Case, async: true
   doctest Tokenizers.Model.BPE
 
-  describe "Initialized from memory" do
+  describe "initialized from memory" do
     test "returns loaded model" do
       assert {:ok, %Tokenizers.Model{}} =
                Tokenizers.Model.BPE.init(%{"a" => 0, "b" => 1, "ab" => 2}, [{"a", "b"}])
@@ -24,7 +24,7 @@ defmodule Tokenizers.Model.BPETest do
     end
   end
 
-  describe "Loaded from file" do
+  describe "loaded from file" do
     test "Good initialized with valid pathes" do
       assert {:ok, %Tokenizers.Model{}} =
                Tokenizers.Model.BPE.from_file(
@@ -33,7 +33,7 @@ defmodule Tokenizers.Model.BPETest do
                )
     end
 
-    test "Bad initialized with invalid pathes" do
+    test "bad initialized with invalid pathes" do
       assert {:error, _} =
                Tokenizers.Model.BPE.from_file(
                  "test/fixtures/not_found_vocab.json",
@@ -41,7 +41,7 @@ defmodule Tokenizers.Model.BPETest do
                )
     end
 
-    test "Bad initialized with good pathes but invalid data" do
+    test "bad initialized with good pathes but invalid data" do
       assert {:error, _} =
                Tokenizers.Model.BPE.from_file(
                  "test/fixtures/vocab.txt",

@@ -1,16 +1,20 @@
 use std::collections::HashMap;
-use std::path::Path;
+use std::ops::Deref;
+use std::path::{Path, PathBuf};
+use std::sync::RwLock;
 
 use rustler::NifTaggedEnum;
+use serde::{Deserialize, Serialize};
 use tokenizers::models::bpe::BpeBuilder;
 use tokenizers::models::wordlevel::WordLevelBuilder;
 use tokenizers::models::wordpiece::WordPieceBuilder;
 use tokenizers::{Model, ModelWrapper};
 
 use crate::error::ExTokenizersError;
-use crate::util::DetailValue;
+use crate::trainers::ExTokenizersTrainer;
+use crate::{new_info, util::Info};
 
-pub struct ExTokenizersModelRef(pub ModelWrapper);
+pub struct ExTokenizersModelRef(pub RwLock<ModelWrapper>);
 
 #[derive(rustler::NifStruct)]
 #[module = "Tokenizers.Model"]
@@ -18,12 +22,72 @@ pub struct ExTokenizersModel {
     pub resource: rustler::resource::ResourceArc<ExTokenizersModelRef>,
 }
 
+impl Serialize for ExTokenizersModel {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.resource.0.read().unwrap().serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for ExTokenizersModel {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Ok(ExTokenizersModel::new(ModelWrapper::deserialize(
+            deserializer,
+        )?))
+    }
+}
+
+impl Clone for ExTokenizersModel {
+    fn clone(&self) -> Self {
+        Self {
+            resource: self.resource.clone(),
+        }
+    }
+}
+
+impl tokenizers::Model for ExTokenizersModel {
+    type Trainer = ExTokenizersTrainer;
+
+    fn tokenize(&self, sequence: &str) -> tokenizers::Result<Vec<tokenizers::Token>> {
+        self.resource.0.read().unwrap().tokenize(sequence)
+    }
+
+    fn token_to_id(&self, token: &str) -> Option<u32> {
+        self.resource.0.read().unwrap().token_to_id(token)
+    }
+
+    fn id_to_token(&self, id: u32) -> Option<String> {
+        self.resource.0.read().unwrap().id_to_token(id)
+    }
+
+    fn get_vocab(&self) -> HashMap<String, u32> {
+        self.resource.0.read().unwrap().get_vocab()
+    }
+
+    fn get_vocab_size(&self) -> usize {
+        self.resource.0.read().unwrap().get_vocab_size()
+    }
+
+    fn save(&self, folder: &Path, name: Option<&str>) -> tokenizers::Result<Vec<PathBuf>> {
+        self.resource.0.read().unwrap().save(folder, name)
+    }
+
+    fn get_trainer(&self) -> Self::Trainer {
+        ExTokenizersTrainer::new(self.resource.0.read().unwrap().get_trainer())
+    }
+}
+
 impl ExTokenizersModelRef {
     pub fn new<T>(data: T) -> Self
     where
         T: Into<ModelWrapper>,
     {
-        Self(data.into())
+        Self(RwLock::new(data.into()))
     }
 }
 
@@ -38,7 +102,7 @@ impl ExTokenizersModel {
     }
 }
 
-#[rustler::nif]
+#[rustler::nif(schedule = "DirtyIo")]
 pub fn models_save(
     model: ExTokenizersModel,
     folder: String,
@@ -47,6 +111,8 @@ pub fn models_save(
     Ok(model
         .resource
         .0
+        .read()
+        .unwrap()
         .save(Path::new(&folder), Some(&prefix))?
         .iter()
         .map(|path| {
@@ -63,73 +129,32 @@ pub fn models_save(
 ///////////////////////////////////////////////////////////////////////////////
 
 #[rustler::nif]
-pub fn models_info(
-    model: ExTokenizersModel,
-) -> Result<HashMap<String, DetailValue>, ExTokenizersError> {
-    Ok(match &model.resource.0 {
-        ModelWrapper::BPE(model) => HashMap::from([
-            (
-                String::from("model_type"),
-                DetailValue::String(String::from("bpe")),
-            ),
-            (
-                String::from("dropout"),
-                DetailValue::OptionNumber(model.dropout),
-            ),
-            (
-                String::from("unk_token"),
-                DetailValue::OptionString(model.unk_token.clone()),
-            ),
-            (
-                String::from("continuing_subword_prefix"),
-                DetailValue::OptionString(model.continuing_subword_prefix.clone()),
-            ),
-            (
-                String::from("end_of_word_suffix"),
-                DetailValue::OptionString(model.end_of_word_suffix.clone()),
-            ),
-            (String::from("fuse_unk"), DetailValue::Bool(model.fuse_unk)),
-            (
-                String::from("byte_fallback"),
-                DetailValue::Bool(model.byte_fallback),
-            ),
-        ]),
-        ModelWrapper::WordPiece(model) => HashMap::from([
-            (
-                String::from("model_type"),
-                DetailValue::String(String::from("wordpiece")),
-            ),
-            (
-                String::from("unk_token"),
-                DetailValue::String(model.unk_token.clone()),
-            ),
-            (
-                String::from("continuing_subword_prefix"),
-                DetailValue::String(model.continuing_subword_prefix.clone()),
-            ),
-            (
-                String::from("max_input_chars_per_word"),
-                DetailValue::USize(model.max_input_chars_per_word),
-            ),
-        ]),
-        ModelWrapper::WordLevel(model) => HashMap::from([
-            (
-                String::from("model_type"),
-                DetailValue::String(String::from("wordlevel")),
-            ),
-            (
-                String::from("unk_token"),
-                DetailValue::String(model.unk_token.clone()),
-            ),
-        ]),
-        ModelWrapper::Unigram(model) => HashMap::from([
-            (
-                String::from("model_type"),
-                DetailValue::String(String::from("unigram")),
-            ),
-            (String::from("min_score"), DetailValue::F64(model.min_score)),
-        ]),
-    })
+pub fn models_info(model: ExTokenizersModel) -> Info {
+    match &model.resource.0.read().unwrap().deref() {
+        ModelWrapper::BPE(model) => new_info! {
+            model_type: "bpe",
+            dropout: model.dropout,
+            unk_token: model.unk_token.clone(),
+            continuing_subword_prefix: model.continuing_subword_prefix.clone(),
+            end_of_word_suffix: model.end_of_word_suffix.clone(),
+            fuse_unk: model.fuse_unk,
+            byte_fallback: model.byte_fallback
+        },
+        ModelWrapper::WordPiece(model) => new_info! {
+            model_type: "wordpiece",
+            unk_token: model.unk_token.clone(),
+            continuing_subword_prefix: model.continuing_subword_prefix.clone(),
+            max_input_chars_per_word: model.max_input_chars_per_word
+        },
+        ModelWrapper::WordLevel(model) => new_info! {
+            model_type: "wordlevel",
+            unk_token: model.unk_token.clone()
+        },
+        ModelWrapper::Unigram(model) => new_info! {
+            model_type: "unigram",
+            min_score: model.min_score
+        },
+    }
 }
 
 ///////////////////////////////////////////////////////////////////////////////

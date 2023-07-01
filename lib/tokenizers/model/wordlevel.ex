@@ -1,6 +1,6 @@
 defmodule Tokenizers.Model.WordLevel do
   @typedoc """
-  Options for model initialisation. All values are optional.
+  Options for model initialisation. All options can be ommited.
 
   * `:unk_token` (default `"[UNK]"`) - The unknown token to be used by the model.
   """
