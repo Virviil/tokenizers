@@ -27,16 +27,12 @@ defmodule Tokenizers.Model.WordPieceTest do
   describe "loaded from file" do
     test "good initialized with valid pathes" do
       assert {:ok, %Tokenizers.Model{}} =
-               Tokenizers.Model.WordPiece.from_file(
-                 "test/fixtures/vocab.txt"
-               )
+               Tokenizers.Model.WordPiece.from_file("test/fixtures/vocab.txt")
     end
 
     test "bad initialized with invalid pathes" do
       assert {:error, _} =
-               Tokenizers.Model.WordPiece.from_file(
-                 "test/fixtures/not_found_vocab.json"
-               )
+               Tokenizers.Model.WordPiece.from_file("test/fixtures/not_found_vocab.json")
     end
   end
 end

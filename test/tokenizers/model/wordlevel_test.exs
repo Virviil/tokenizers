@@ -11,7 +11,7 @@ defmodule Tokenizers.Model.WordLevelTest do
     test "accepts keyword params" do
       assert {:ok, %Tokenizers.Model{}} =
                Tokenizers.Model.WordLevel.init(%{"a" => 0, "b" => 1, "ab" => 2},
-               unk_token: "asdf"
+                 unk_token: "asdf"
                )
     end
 
@@ -27,16 +27,12 @@ defmodule Tokenizers.Model.WordLevelTest do
   describe "loaded from file" do
     test "good initialized with valid pathes" do
       assert {:ok, %Tokenizers.Model{}} =
-               Tokenizers.Model.WordLevel.from_file(
-                 "test/fixtures/vocab.json"
-               )
+               Tokenizers.Model.WordLevel.from_file("test/fixtures/vocab.json")
     end
 
     test "bad initialized with invalid pathes" do
       assert {:error, _} =
-               Tokenizers.Model.WordLevel.from_file(
-                 "test/fixtures/not_found_vocab.json"
-               )
+               Tokenizers.Model.WordLevel.from_file("test/fixtures/not_found_vocab.json")
     end
   end
 end
