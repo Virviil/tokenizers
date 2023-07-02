@@ -483,18 +483,12 @@ pub fn tokenizer_decode_batch(
 }
 
 #[rustler::nif]
-pub fn tokenizer_token_to_id(
-    tokenizer: ExTokenizersTokenizer,
-    token: &str,
-) -> Option<u32> {
+pub fn tokenizer_token_to_id(tokenizer: ExTokenizersTokenizer, token: &str) -> Option<u32> {
     tokenizer.resource.0.read().unwrap().token_to_id(token)
 }
 
 #[rustler::nif]
-pub fn tokenizer_id_to_token(
-    tokenizer: ExTokenizersTokenizer,
-    id: u32,
-) -> Option<String> {
+pub fn tokenizer_id_to_token(tokenizer: ExTokenizersTokenizer, id: u32) -> Option<String> {
     tokenizer.resource.0.read().unwrap().id_to_token(id)
 }
 
